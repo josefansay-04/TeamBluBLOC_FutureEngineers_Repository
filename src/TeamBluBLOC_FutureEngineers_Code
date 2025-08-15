@@ -1,0 +1,320 @@
+#include <Servo.h>
+
+
+
+
+// Servo
+const int servoPin = A0;
+Servo myServo;
+
+
+
+
+// Motor
+int speedPinRight = 10;      
+int directionPinRight = 9;
+
+
+
+
+// Color sensor
+int S0 = A5;
+int S1 = A4;
+int S2 = A3;
+int S3 = A2;
+int sensorOut = 2;
+
+
+
+
+// Ultrasonic sensors
+const int trigLeft = A1;
+const int echoLeft = 3;
+const int trigRight = 5;
+const int echoRight = 4;
+const int trigFront = 6;
+const int echoFront = 7;
+const int trigRear = 8;
+const int echoRear = 11;
+
+
+
+
+//This will count the parking lot
+int lapCount = 0;
+
+
+
+
+
+
+
+
+
+
+
+
+void setup() {
+  Serial.begin(9600);
+  myServo.attach(servoPin);
+
+
+
+
+  pinMode(sensorOut, INPUT);
+  pinMode(S0, OUTPUT); pinMode(S1, OUTPUT);
+  pinMode(S2, OUTPUT); pinMode(S3, OUTPUT);
+  digitalWrite(S0, HIGH);
+  digitalWrite(S1, LOW);  
+
+
+
+
+  pinMode(speedPinRight, OUTPUT);
+  pinMode(directionPinRight, OUTPUT);
+
+
+
+
+  pinMode(trigLeft, OUTPUT); pinMode(echoLeft, INPUT);
+  pinMode(trigRight, OUTPUT); pinMode(echoRight, INPUT);
+  pinMode(trigFront, OUTPUT); pinMode(echoFront, INPUT);
+  pinMode(trigRear, OUTPUT); pinMode(echoRear, INPUT);
+}
+
+
+
+
+
+
+
+
+
+
+
+
+void loop() {
+  int distFront = readDistance(trigFront, echoFront);
+  int distRear = readDistance(trigRear, echoRear);
+  int distLeft = readDistance(trigLeft, echoLeft);
+  int distRight = readDistance(trigRight, echoRight);
+
+
+Serial.println(distFront);
+Serial.println(distRear);
+Serial.println(distLeft);
+Serial.println(distRight);
+
+
+
+
+  String color = detectColor();
+
+
+
+
+  // detect color
+  if (color == "GREEN") {
+    turnLeft();
+    delay(700);
+  } else if (color == "RED") {
+    turnRight();
+    delay(700);
+  } else if (color == "MAGENTA") {
+    lapCount++;
+    Serial.print("Lap count: ");
+    Serial.println(lapCount);
+    delay(1000);
+if (lapCount >= 3) {
+  stopCar();
+  parallelPark();
+  while (true);
+}
+
+
+
+
+
+
+   
+  }
+
+
+
+
+  // For dodging obstacles/walls
+  if (distFront > 0 && distFront < 15) {
+    moveBackward();
+    delay(300);
+  } else if (distRear > 0 && distRear < 15) {
+    moveForward();
+    delay(300);
+  } else if (distLeft > 0 && distLeft < 15) {
+    steerRight();
+    delay(300);
+  } else if (distRight > 0 && distRight < 15) {
+    steerLeft();
+    delay(300);
+  } else {
+    moveForward();
+  }
+
+
+
+
+  delay(100);
+}
+//Everything after this line are variables that were used in the lines above for sensory
+
+
+
+
+// For turning and moving
+void moveForward() {
+  digitalWrite(directionPinRight, HIGH);
+  analogWrite(speedPinRight, 180);
+  steerCenter();
+}
+
+
+
+
+void moveBackward() {
+  digitalWrite(directionPinRight, LOW);
+  analogWrite(speedPinRight, 180); //If need to change the motor speed
+  steerCenter();
+}
+
+
+
+
+void stopCar() {
+  analogWrite(speedPinRight, 0);
+}
+
+
+
+
+void steerLeft() {
+  myServo.write(0);  //IMPORTANT: Use this for adjusting steering since this is the angle of the servos. Same with the numbers after
+}
+
+
+
+
+void steerRight() {
+  myServo.write(180);
+}
+
+
+
+
+void steerCenter() {
+  myServo.write(90);
+}
+
+
+
+
+void turnLeft() {
+  steerLeft();
+  moveForward();
+}
+
+
+
+
+void turnRight() {
+  steerRight();
+  moveForward();
+}
+//PARALLEL PARKING
+
+
+
+
+void parallelPark() {
+  steerRight();
+  moveBackward();
+  delay(600);
+
+
+  steerLeft();
+  moveBackward();
+
+
+  while (true) {
+    int rear = readDistance(trigRear, echoRear);
+    int left = readDistance(trigLeft, echoLeft);
+
+
+    if ((rear > 0 && rear < 10) || (left > 0 && left < 5)) {
+      stopCar();
+      break;
+    }
+    delay(50);
+  }
+
+
+  steerCenter();
+  stopCar();
+}
+
+
+
+
+
+
+
+
+
+
+
+
+// ultrasonics
+int readDistance(int trigPin, int echoPin) {
+  digitalWrite(trigPin, LOW); delayMicroseconds(2);
+  digitalWrite(trigPin, HIGH); delayMicroseconds(10);
+  digitalWrite(trigPin, LOW);
+  long duration = pulseIn(echoPin, HIGH, 30000);
+  int distance = duration * 0.034 / 2;
+  if (distance == 0 || distance > 400) return -1;
+  return distance;
+}
+
+
+
+
+// color detection
+String detectColor() {
+  digitalWrite(S2, LOW); digitalWrite(S3, LOW);
+  int red = pulseIn(sensorOut, LOW);
+
+
+
+
+  digitalWrite(S2, HIGH); digitalWrite(S3, HIGH);
+  int green = pulseIn(sensorOut, LOW);
+
+
+
+
+  digitalWrite(S2, LOW); digitalWrite(S3, HIGH);
+  int blue = pulseIn(sensorOut, LOW);
+
+
+
+
+
+
+
+
+  if (red < 25 && green > 40 && blue < 25) return "GREEN";
+  if (red > 40 && green < 30 && blue < 30) return "RED";
+  if (red > 35 && green < 25 && blue > 35) return "MAGENTA";
+
+
+
+
+  return "NONE";
+}
